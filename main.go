@@ -1,11 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 
@@ -48,10 +48,6 @@ func stringPtr(v string) *string {
 }
 
 func main() {
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	// Load eBPF from an elf file
 	coll, err := ebpf.LoadCollectionSpec("ebpf/drop")
 	if err != nil {
@@ -149,7 +145,9 @@ func main() {
 		return
 	}
 
-	<-ctx.Done()
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+	<-sig
 
 	if err := tcnl.Filter().Delete(&tc.Object{
 		Msg: tc.Msg{
