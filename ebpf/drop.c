@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include <linux/ip.h>
 #include <linux/if_ether.h>
 #include <linux/swab.h>
 #include <linux/pkt_cls.h>
@@ -29,13 +30,19 @@ int ingress_drop(struct __sk_buff *skb) {
 	void *data = (void *)(unsigned long long)skb->data;
 	struct ethhdr *eth = data;
 
-	/* Drop mailformated packet	*/
-	if (data + sizeof(struct ethhdr) > data_end)
-		return TC_ACT_SHOT;
+    int ipsize = sizeof(*eth);
+    struct iphdr *ip = data + ipsize;
+    ipsize += sizeof(struct iphdr);
 
-	/* Drop legacy IP traffic */
-	if (eth->h_proto == ___constant_swab16(ETH_P_IP))
-		return TC_ACT_SHOT;
+    // drop malformed ip packet
+    if (data + ipsize > data_end) {
+        return TC_ACT_SHOT;
+    }
+
+    // drop source of example.com
+    if (ip->saddr == ___constant_swab32(1572395042)) {
+        return TC_ACT_SHOT;
+    }
 
 	return TC_ACT_OK;
 }
