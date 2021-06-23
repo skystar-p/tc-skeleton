@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/cilium/ebpf"
 
@@ -47,36 +48,36 @@ func stringPtr(v string) *string {
 	return &v
 }
 
+type BPFObjects struct {
+	TcDropper *ebpf.Program `ebpf:"ingress_drop"`
+	DropMap   *ebpf.Map     `ebpf:"tc_drop_map"`
+}
+
 func main() {
 	// Load eBPF from an elf file
-	coll, err := ebpf.LoadCollectionSpec("ebpf/drop")
+	spec, err := ebpf.LoadCollectionSpec("ebpf/drop")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not load collection from file: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
-	// Load the eBPF program ingress_drop
-	ingressDrop, err := ebpf.NewProgramWithOptions(coll.Programs["ingress_drop"],
-		ebpf.ProgramOptions{
-			LogLevel: 1,
-			LogSize:  65536,
-		})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not load program: %v\n", err)
-		return
+	// Load programs and maps
+	obj := BPFObjects{}
+	if err := spec.LoadAndAssign(&obj, nil); err != nil {
+		fmt.Fprintf(os.Stderr, "could not load programs and maps: %v\n", err)
+		os.Exit(1)
 	}
-	defer ingressDrop.Close()
 
 	// Print verifier feedback
-	fmt.Printf("%s", ingressDrop.VerifierLog)
+	fmt.Printf("%s", obj.TcDropper.VerifierLog)
 
-	info, _ := ingressDrop.Info()
+	info, _ := obj.TcDropper.Info()
 
 	// Setup tc socket for communication with the kernel
 	tcnl, err := tc.Open(&tc.Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not open rtnetlink socket: %v\n", err)
-		return
+		os.Exit(1)
 	}
 	defer func() {
 		if err := tcnl.Close(); err != nil {
@@ -88,7 +89,7 @@ func main() {
 	devID, err := net.InterfaceByName(tcIface)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not get interface ID: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	qdisc := tc.Object{
@@ -106,7 +107,7 @@ func main() {
 	// Install Qdisc on testing interface
 	if err := tcnl.Qdisc().Add(&qdisc); err != nil {
 		fmt.Fprintf(os.Stderr, "could not assign clsact to %s: %v\n", tcIface, err)
-		return
+		os.Exit(1)
 	}
 	// when deleting the qdisc, the applied filter will also be gone
 	defer tcnl.Qdisc().Delete(&qdisc)
@@ -122,7 +123,7 @@ func main() {
 		Attribute: tc.Attribute{
 			Kind: "bpf",
 			BPF: &tc.Bpf{
-				FD:    uint32Ptr(uint32(ingressDrop.FD())),
+				FD:    uint32Ptr(uint32(obj.TcDropper.FD())),
 				Name:  stringPtr(info.Name),
 				Flags: uint32Ptr(0x1),
 			},
@@ -130,12 +131,41 @@ func main() {
 	}
 	if err := tcnl.Filter().Add(&filter); err != nil {
 		fmt.Fprintf(os.Stderr, "could not assign eBPF: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	<-sig
+
+	ticker := time.NewTicker(time.Second)
+	for {
+		exit := false
+		select {
+		case <-ticker.C:
+			fmt.Printf("===================================\n")
+			iter := obj.DropMap.Iterate()
+			for {
+				var (
+					keyOut uint32
+					valOut uint64
+				)
+				if !iter.Next(&keyOut, &valOut) {
+					if iter.Err() != nil {
+						fmt.Fprintf(os.Stderr, "error while iterating map: %v\n", err)
+						exit = true
+					}
+					break
+				}
+				fmt.Printf("key: %d, value: %d\n", keyOut, valOut)
+			}
+		case <-sig:
+			exit = true
+		}
+
+		if exit {
+			break
+		}
+	}
 
 	if err := tcnl.Filter().Delete(&tc.Object{
 		Msg: tc.Msg{
@@ -147,10 +177,13 @@ func main() {
 		},
 		Attribute: tc.Attribute{
 			Kind: "bpf",
+			BPF: &tc.Bpf{
+				FD: uint32Ptr(uint32(obj.TcDropper.FD())),
+			},
 		},
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "could not delete eBPF filter: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 }
