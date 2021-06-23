@@ -108,13 +108,13 @@ func main() {
 	}(uint32(devID.Index), rtnl)
 
 	qdisc := tc.Object{
-		tc.Msg{
+		Msg: tc.Msg{
 			Family:  unix.AF_UNSPEC,
 			Ifindex: uint32(devID.Index),
 			Handle:  helper.BuildHandle(0xFFFF, 0x0000),
 			Parent:  tc.HandleIngress,
 		},
-		tc.Attribute{
+		Attribute: tc.Attribute{
 			Kind: "clsact",
 		},
 	}
@@ -128,14 +128,14 @@ func main() {
 	defer tcnl.Qdisc().Delete(&qdisc)
 
 	filter := tc.Object{
-		tc.Msg{
+		Msg: tc.Msg{
 			Family:  unix.AF_UNSPEC,
 			Ifindex: uint32(devID.Index),
 			Handle:  0,
 			Parent:  0xFFFFFFF2,
 			Info:    0x10300,
 		},
-		tc.Attribute{
+		Attribute: tc.Attribute{
 			Kind: "bpf",
 			BPF: &tc.Bpf{
 				FD:    uint32Ptr(uint32(ingressDrop.FD())),
@@ -152,17 +152,17 @@ func main() {
 	<-ctx.Done()
 
 	if err := tcnl.Filter().Delete(&tc.Object{
-			tc.Msg{
-				Family:  unix.AF_UNSPEC,
-				Ifindex: uint32(devID.Index),
-				Handle:  1,
-				Parent:  0xFFFFFFF2,
-				Info:    0x10000,
-			},
-			tc.Attribute{
-				Kind: "bpf",
-			},
-		}); err != nil {
+		Msg: tc.Msg{
+			Family:  unix.AF_UNSPEC,
+			Ifindex: uint32(devID.Index),
+			Handle:  1,
+			Parent:  0xFFFFFFF2,
+			Info:    0x10000,
+		},
+		Attribute: tc.Attribute{
+			Kind: "bpf",
+		},
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "could not delete eBPF filter: %v\n", err)
 		return
 	}
