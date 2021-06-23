@@ -84,24 +84,12 @@ func main() {
 		}
 	}()
 
-	// Setup dummy interface for testing
-	var rtnl *rtnetlink.Conn
-	tcIface := "tcDevTesting"
-	if rtnl, err = setupDummyInterface(tcIface); err != nil {
-		fmt.Fprintf(os.Stderr, "could not setup dummy interface: %v\n", err)
-		return
-	}
-	defer rtnl.Close()
+	tcIface := "enp5s0"
 	devID, err := net.InterfaceByName(tcIface)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not get interface ID: %v\n", err)
 		return
 	}
-	defer func(devID uint32, rtnl *rtnetlink.Conn) {
-		if err := rtnl.Link.Delete(devID); err != nil {
-			fmt.Fprintf(os.Stderr, "could not delete interface %s: %v\n", tcIface, err)
-		}
-	}(uint32(devID.Index), rtnl)
 
 	qdisc := tc.Object{
 		Msg: tc.Msg{
