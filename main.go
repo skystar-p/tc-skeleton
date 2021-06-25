@@ -138,6 +138,7 @@ func main() {
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 
 	ticker := time.NewTicker(time.Second)
+	dropPacket := true
 	for {
 		exit := false
 		select {
@@ -157,6 +158,20 @@ func main() {
 					break
 				}
 				fmt.Printf("key: %d, value: %d\n", keyOut, valOut)
+				if keyOut == 123 && valOut % 10 == 0 {
+					dropPacket = !dropPacket
+					if dropPacket {
+						fmt.Printf("drop switch on\n")
+						if err := obj.DropMap.Update(uint32(321), uint64(1), ebpf.UpdateAny); err != nil {
+							fmt.Fprintf(os.Stderr, "error while updating drop switch: %v\n", err)
+						}
+					} else {
+						fmt.Printf("drop switch off\n")
+						if err := obj.DropMap.Update(uint32(321), uint64(0), ebpf.UpdateAny); err != nil {
+							fmt.Fprintf(os.Stderr, "error while updating drop switch: %v\n", err)
+						}
+					}
+				}
 			}
 		case <-sig:
 			exit = true

@@ -60,11 +60,30 @@ int ingress_drop(struct __sk_buff *skb) {
         __u64 initval = 0, *valp;
         valp = bpf_map_lookup_elem(&tc_drop_map, &key);
         if (!valp) {
-            bpf_printk("not found. update elem");
+            bpf_printk("key not found. update elem");
             bpf_map_update_elem(&tc_drop_map, &key, &initval, BPF_ANY);
         } else {
-            bpf_printk("found. increment by 1");
+            bpf_printk("key found. increment by 1");
             __sync_fetch_and_add(valp, 1);
+        }
+
+        // drop switch
+        __u32 key2 = 321;
+        __u64 *valp2;
+        valp2 = bpf_map_lookup_elem(&tc_drop_map, &key2);
+        if (!valp2) {
+            bpf_printk("key2 not found.");
+        } else {
+            if (*valp2 == 0) {
+                bpf_printk("val2 is 0. accepting packet");
+                return TC_ACT_OK;
+            } else if (*valp2 == 1) {
+                bpf_printk("val2 is 1. dropping packet");
+                return TC_ACT_SHOT;
+            } else {
+                bpf_printk("invalid val2. accepting packet");
+                return TC_ACT_OK;
+            }
         }
 
         return TC_ACT_SHOT;
