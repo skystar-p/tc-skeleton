@@ -49,7 +49,7 @@ func stringPtr(v string) *string {
 }
 
 type BPFObjects struct {
-	TcDropper *ebpf.Program `ebpf:"ingress_drop"`
+	TcDropper *ebpf.Program `ebpf:"dropper"`
 	DropMap   *ebpf.Map     `ebpf:"tc_drop_map"`
 }
 
@@ -117,7 +117,7 @@ func main() {
 			Family:  unix.AF_UNSPEC,
 			Ifindex: uint32(devID.Index),
 			Handle:  0,
-			Parent:  0xFFFFFFF2,
+			Parent:  helper.BuildHandle(0xFFFF, tc.HandleMinEgress),
 			Info:    0x10300,
 		},
 		Attribute: tc.Attribute{
@@ -158,7 +158,7 @@ func main() {
 					break
 				}
 				fmt.Printf("key: %d, value: %d\n", keyOut, valOut)
-				if keyOut == 123 && valOut % 10 == 0 {
+				if keyOut == 123 && valOut%10 == 0 {
 					dropPacket = !dropPacket
 					if dropPacket {
 						fmt.Printf("drop switch on\n")
@@ -187,7 +187,7 @@ func main() {
 			Family:  unix.AF_UNSPEC,
 			Ifindex: uint32(devID.Index),
 			Handle:  1,
-			Parent:  0xFFFFFFF2,
+			Parent:  helper.BuildHandle(0xFFFF, tc.HandleMinEgress),
 			Info:    0x10000,
 		},
 		Attribute: tc.Attribute{
