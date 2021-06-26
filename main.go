@@ -9,36 +9,11 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-
-	"github.com/jsimonetti/rtnetlink"
-
 	"github.com/florianl/go-tc"
 	helper "github.com/florianl/go-tc/core"
 
 	"golang.org/x/sys/unix"
 )
-
-// setupDummyInterface installs a temporary dummy interface
-func setupDummyInterface(iface string) (*rtnetlink.Conn, error) {
-	con, err := rtnetlink.Dial(nil)
-	if err != nil {
-		return &rtnetlink.Conn{}, err
-	}
-	if err := con.Link.New(&rtnetlink.LinkMessage{
-		Family: unix.AF_UNSPEC,
-		Type:   unix.ARPHRD_NETROM,
-		Index:  0,
-		Flags:  unix.IFF_UP,
-		Change: unix.IFF_UP,
-		Attributes: &rtnetlink.LinkAttributes{
-			Name: iface,
-			Info: &rtnetlink.LinkInfo{Kind: "dummy"},
-		},
-	}); err != nil {
-		return con, err
-	}
-	return con, err
-}
 
 func uint32Ptr(v uint32) *uint32 {
 	return &v
