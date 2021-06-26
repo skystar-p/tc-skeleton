@@ -6,14 +6,14 @@ Simple project to demonstrate the loading of eBPF programs via [florianl/go-tc](
 ```
   $ cd ebpf
   $ make clean
-  $ make drop
+  $ make
   $ cd ..
   $ go run main.go
 ```
 
 Overview
 --------
-After the eBPF code is loaded from `ebpf/drop` the eBPF program `ingress_drop` is loaded into the kernel. In a next step this PoC creates a dummy interface. So it does not alter existing configurations or network interfaces. Then a [qdisc and filter](https://man7.org/linux/man-pages/man8/tc.8.html) are attached via the [netlink interface](https://man7.org/linux/man-pages/man7/netlink.7.html) of the kernel to this dummy interface. The file descriptor of the eBPF program `ingress_drop` is passed as argument of the filter to the kernel. With attaching the filter to the interface the eBPF program `ingress_drop` will run on every packet on the interface.
+After the eBPF code is loaded from `ebpf/drop` the eBPF program `dropper` is loaded into the kernel. Modify code according to your real network interface name. Then a [qdisc and filter](https://man7.org/linux/man-pages/man8/tc.8.html) are attached via the [netlink interface](https://man7.org/linux/man-pages/man7/netlink.7.html) of the kernel to this interface. The file descriptor of the eBPF program `dropper` and eBPF map `tc_drop_map` is passed as argument of the filter to the kernel. With attaching the filter to the interface the eBPF program `dropper` will run on every egress packet on the interface.
 
 Privileges
 ----------
